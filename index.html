@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel Admin - OG CUP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f5f7fa;
+      padding: 2rem;
+      color: #2c3e50;
+    }
+
+    h2 {
+      color: #34495e;
+      margin-bottom: 1rem;
+      font-weight: 700;
+    }
+
+    #filtro-codigo {
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      width: 300px;
+      border: 1.5px solid #5dade2;
+      border-radius: 5px;
+      transition: border-color 0.3s ease;
+    }
+
+    #filtro-codigo:focus {
+      outline: none;
+      border-color: #2e86c1;
+      box-shadow: 0 0 5px rgba(46, 134, 193, 0.5);
+    }
+
+    .table-container {
+      overflow-x: auto;
+      border-radius: 8px;
+      box-shadow: 0 6px 15px rgba(50, 50, 93, 0.1);
+      background: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 700px;
+    }
+
+    th, td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid #dce3e8;
+      text-align: left;
+      font-size: 0.95rem;
+      color: #34495e;
+    }
+
+    th {
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    tr:nth-child(even) {
+      background-color: #ecf0f1;
+    }
+
+    tr:hover {
+      background-color: #d6e9f8;
+      cursor: default;
+    }
+
+    #contador-registros {
+      margin-bottom: 1rem;
+      font-weight: 600;
+      color: #34495e;
+    }
+
+    .cargando {
+      color: #7f8c8d;
+      font-style: italic;
+    }
+
+    #paginacion {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      font-weight: 600;
+      color: #34495e;
+    }
+
+    #paginacion button {
+      background-color: #5dade2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.4rem 0.9rem;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background-color 0.3s ease;
+    }
+
+    #paginacion button:disabled {
+      background-color: #b0cde8;
+      cursor: not-allowed;
+    }
+
+    #paginacion button:hover:not(:disabled) {
+      background-color: #2e86c1;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 1rem;
+      }
+
+      #filtro-codigo {
+        width: 100%;
+        font-size: 1rem;
+      }
+
+      h2 {
+        font-size: 1.4rem;
+      }
+
+      table {
+        min-width: 600px;
+        font-size: 0.9rem;
+      }
+
+      #paginacion {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      #paginacion button {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.9rem;
+      }
+    }
+
+    .estado-select {
+      padding: 4px 6px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      background: #fdfdfd;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <h2 id="titulo-principal">
+    <img src="OGimagen.png" alt="Icono" style="height: 100px; vertical-align: middle; margin-right: 10px;" />
+    Panel de Administración - Olympus Garden CUP
+    <img src="OGimagen.png" alt="Icono" style="height: 100px; vertical-align: middle; margin-right: 10px;" />
+  </h2>
+
+  <input type="text" id="filtro-codigo" placeholder="Filtrar por Código de Registro" title="Escribe aquí para filtrar por código de registro" />
+
+  <button id="btn-eliminar-cancelados" style="float: right; background-color: #e74c3c; color: white; 1rem;  padding: 0.5rem 1rem; border: none; border-radius: 5px; cursor: pointer;" style="margin-bottom: 1rem;  padding: 0.5rem 1rem; border: none; border-radius: 5px; cursor: pointer;">
+    🗑️ Eliminar Cancelados
+  </button>
+  
+  <button id="btn-descargar-excel" style="margin-left: 1rem; background-color: #28a745; color: white; padding: 0.5rem 1rem; border: none; border-radius: 5px; cursor: pointer;">
+  📥 Descargar Excel
+</button>
+
+  <p id="contador-registros" class="cargando">Cargando registros...</p>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Apellido</th>
+          <th>Celular</th>
+          <th>ID Pokémon</th>
+          <th>Correo</th>
+          <th>Código de Registro</th>
+          <th>Fecha</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-registros"></tbody>
+    </table>
+  </div>
+
+  <div id="paginacion">
+    <button id="btn-prev" disabled>◀ Anterior</button>
+    <span id="pagina-info">Página 1 de 1</span>
+    <button id="btn-next" disabled>Siguiente ▶</button>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://irmomhkjlvexpkhewloy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlybW9taGtqbHZleHBraGV3bG95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMzI2MDMsImV4cCI6MjA2ODgwODYwM30._nkkpO-hyRoxFbQf700-AeARSESyymS-6rSuT5usaaU';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const contador = document.getElementById('contador-registros');
+    const tabla = document.getElementById('tabla-registros');
+    const filtroInput = document.getElementById('filtro-codigo');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const paginaInfo = document.getElementById('pagina-info');
+    const btnEliminarCancelados = document.getElementById("btn-eliminar-cancelados");
+
+    btnEliminarCancelados.addEventListener("click", async () => {
+      const confirmar = confirm("⚠️ ¿Estás seguro de eliminar TODOS los registros con estado 'Cancelado'?\nEsta acción no se puede deshacer.");
+      if (!confirmar) return;
+
+      const { error } = await supabaseClient.from("registros").delete().eq("aprobado", "Cancelado");
+
+      if (error) {
+        alert("❌ Error al eliminar registros cancelados.");
+        console.error(error);
+      } else {
+        alert("✅ Registros cancelados eliminados correctamente.");
+        cargarRegistros(paginaActual, filtroActual);
+      }
+    });
+
+    let paginaActual = 1;
+    const registrosPorPagina = 10;
+    let totalRegistros = 0;
+    let totalPaginas = 1;
+    let filtroActual = '';
+
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    filtroInput.addEventListener('input', debounce(() => {
+      cargarRegistros(1, filtroInput.value);
+    }, 300));
+
+    async function cargarRegistros(pagina = 1, filtroCodigo = '') {
+      contador.textContent = 'Cargando registros...';
+      tabla.innerHTML = '';
+      btnPrev.disabled = true;
+      btnNext.disabled = true;
+      paginaInfo.textContent = '';
+
+      filtroActual = filtroCodigo;
+      paginaActual = pagina;
+      const desde = (paginaActual - 1) * registrosPorPagina;
+
+      let countQuery = supabaseClient.from('registros').select('id', { count: 'exact', head: true });
+      if (filtroCodigo.trim() !== '') {
+        countQuery = countQuery.ilike('codigo_registro', `%${filtroCodigo.trim()}%`);
+      }
+
+      const { count, error: countError } = await countQuery;
+      if (countError) {
+        contador.textContent = '❌ Error al contar registros.';
+        console.error(countError);
+        return;
+      }
+
+      totalRegistros = count || 0;
+      totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+
+      if (totalRegistros === 0) {
+        contador.textContent = 'No hay registros para mostrar.';
+        paginaInfo.textContent = '';
+        return;
+      }
+
+      let query = supabaseClient.from('registros').select('*').order('id', { ascending: false }).range(desde, desde + registrosPorPagina - 1);
+      if (filtroCodigo.trim() !== '') {
+        query = query.ilike('codigo_registro', `%${filtroCodigo.trim()}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        contador.textContent = '❌ Error al cargar registros.';
+        console.error(error);
+        return;
+      }
+
+      contador.textContent = `Total de registros: ${totalRegistros}`;
+
+      data.forEach((item) => {
+        const fila = document.createElement('tr');
+
+        let fecha = 'Sin fecha';
+        if (item.fecha_registro) {
+          try {
+            const fechaIso = item.fecha_registro.replace(' ', 'T').replace(/(\.\d{3})\d*/, '$1') + 'Z';
+            const fechaObj = new Date(fechaIso);
+            if (!isNaN(fechaObj)) {
+              fecha = fechaObj.toLocaleString('es-CR', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              });
+            }
+          } catch (e) {
+            console.warn("Error procesando fecha:", item.fecha_registro, e);
+          }
+        }
+
+        fila.innerHTML = `
+          <td>${item.nombre}</td>
+          <td>${item.apellido}</td>
+<td>
+  <a href="https://wa.me/506${item.celular}" target="_blank" class="whatsapp-link">📞
+    ${item.celular}
+  </a>
+</td>
+          <td>${item.pokemon_id}</td>
+          <td>${item.email}</td>
+          <td>${item.codigo_registro}</td>
+          <td>${fecha}</td>
+          <td>
+            <select data-id="${item.id}" class="estado-select">
+              <option value="Pendiente" ${item.aprobado === "Pendiente" ? "selected" : ""}>⚠️ Pendiente</option>
+              <option value="Aprobado" ${item.aprobado === "Aprobado" ? "selected" : ""}>✅ Aprobado</option>
+              <option value="Cancelado" ${item.aprobado === "Cancelado" ? "selected" : ""}>❌ Cancelado</option>
+            </select>
+          </td>
+        `;
+
+        tabla.appendChild(fila);
+
+        const select = fila.querySelector(".estado-select");
+        select.addEventListener("change", async (e) => {
+          const nuevoEstado = e.target.value;
+          const idRegistro = e.target.getAttribute("data-id");
+
+          const { error: updateError } = await supabaseClient.from("registros").update({ aprobado: nuevoEstado }).eq("id", idRegistro);
+
+          if (updateError) {
+            alert("❌ Error al actualizar estado.");
+            console.error(updateError);
+          } else {
+            alert("✅ Estado actualizado correctamente.");
+          }
+        });
+      });
+
+      paginaInfo.textContent = `Página ${paginaActual} de ${totalPaginas}`;
+      btnPrev.disabled = paginaActual <= 1;
+      btnNext.disabled = paginaActual >= totalPaginas;
+    }
+
+    btnPrev.addEventListener('click', () => {
+      if (paginaActual > 1) {
+        cargarRegistros(paginaActual - 1, filtroActual);
+      }
+    });
+
+    btnNext.addEventListener('click', () => {
+      if (paginaActual < totalPaginas) {
+        cargarRegistros(paginaActual + 1, filtroActual);
+      }
+    });
+
+    cargarRegistros();
+	
+	document.getElementById('btn-descargar-excel').addEventListener('click', async () => {
+  const { data, error } = await supabaseClient.from('registros').select('*').order('id', { ascending: false });
+  if (error) {
+    alert("❌ Error al obtener registros.");
+    return;
+  }
+
+  const registros = data.map(item => {
+    let fecha = '';
+    try {
+      if (item.fecha_registro) {
+        const fechaIso = item.fecha_registro.replace(' ', 'T').replace(/(\.\d{3})\d*/, '$1') + 'Z';
+        const fechaObj = new Date(fechaIso);
+        if (!isNaN(fechaObj)) {
+          fecha = fechaObj.toLocaleString('es-CR', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+          });
+        }
+      }
+    } catch {}
+
+    return {
+      Nombre: item.nombre,
+      Apellido: item.apellido,
+      Celular: item.celular,
+      ID_Pokemon: item.pokemon_id,
+      Correo: item.email,
+      Codigo_Registro: item.codigo_registro,
+      Fecha: fecha,
+      Estado: item.aprobado
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(registros);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Registros");
+
+  XLSX.writeFile(workbook, "OG_CUP_Registros.xlsx");
+});
+
+	
+  </script>
+  
+
+ 
+</body>
+</html>
